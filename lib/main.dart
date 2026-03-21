@@ -69,6 +69,15 @@ final Map<String, GuitarTuning> guitarTunings = {
       GuitarNote(name: 'High D', frequency: 293.66),
     ],
   ),
+  'Ukulele': GuitarTuning(
+    name: 'Ukulele',
+    notes: [
+      GuitarNote(name: 'G', frequency: 392.00),
+      GuitarNote(name: 'C', frequency: 261.63),
+      GuitarNote(name: 'E', frequency: 329.63),
+      GuitarNote(name: 'A', frequency: 440.00),
+    ],
+  ),
 };
 
 class HomePage extends StatefulWidget {
@@ -114,7 +123,7 @@ class _HomePageState extends State<HomePage> {
     gainNode.connect(audioContext.destination);
 
     // Set gain (volume)
-    gainNode.gain.value = 0.3;
+    gainNode.gain.value = 0.7;
 
     // Play the note
     oscillator.start();
