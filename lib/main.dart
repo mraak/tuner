@@ -28,6 +28,49 @@ class GuitarNote {
   GuitarNote({required this.name, required this.frequency});
 }
 
+class GuitarTuning {
+  final String name;
+  final List<GuitarNote> notes;
+
+  GuitarTuning({required this.name, required this.notes});
+}
+
+final Map<String, GuitarTuning> guitarTunings = {
+  'Standard': GuitarTuning(
+    name: 'Standard',
+    notes: [
+      GuitarNote(name: 'E', frequency: 82.41),
+      GuitarNote(name: 'A', frequency: 110.00),
+      GuitarNote(name: 'D', frequency: 146.83),
+      GuitarNote(name: 'G', frequency: 196.00),
+      GuitarNote(name: 'B', frequency: 246.94),
+      GuitarNote(name: 'High E', frequency: 329.63),
+    ],
+  ),
+  'Drop D': GuitarTuning(
+    name: 'Drop D',
+    notes: [
+      GuitarNote(name: 'D', frequency: 73.42),
+      GuitarNote(name: 'A', frequency: 110.00),
+      GuitarNote(name: 'D', frequency: 146.83),
+      GuitarNote(name: 'G', frequency: 196.00),
+      GuitarNote(name: 'B', frequency: 246.94),
+      GuitarNote(name: 'High E', frequency: 329.63),
+    ],
+  ),
+  'Open G': GuitarTuning(
+    name: 'Open G',
+    notes: [
+      GuitarNote(name: 'D', frequency: 73.42),
+      GuitarNote(name: 'G', frequency: 98.00),
+      GuitarNote(name: 'D', frequency: 146.83),
+      GuitarNote(name: 'G', frequency: 196.00),
+      GuitarNote(name: 'B', frequency: 246.94),
+      GuitarNote(name: 'High D', frequency: 293.66),
+    ],
+  ),
+};
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -38,20 +81,22 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late web.AudioContext audioContext;
   web.OscillatorNode? currentOscillator;
+  String selectedTuning = 'Standard';
 
-  final List<GuitarNote> guitarNotes = [
-    GuitarNote(name: 'E', frequency: 82.41),
-    GuitarNote(name: 'A', frequency: 110.00),
-    GuitarNote(name: 'D', frequency: 146.83),
-    GuitarNote(name: 'G', frequency: 196.00),
-    GuitarNote(name: 'B', frequency: 246.94),
-    GuitarNote(name: 'High E', frequency: 329.63),
-  ];
+  late List<GuitarNote> guitarNotes;
 
   @override
   void initState() {
     super.initState();
     audioContext = web.AudioContext();
+    guitarNotes = guitarTunings[selectedTuning]!.notes;
+  }
+
+  void updateTuning(String tuning) {
+    setState(() {
+      selectedTuning = tuning;
+      guitarNotes = guitarTunings[tuning]!.notes;
+    });
   }
 
   void playNote(double frequency) {
@@ -101,9 +146,42 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Column(
         children: [
-          // Small buttons at the top
+          // Tuning dropdown
           Padding(
             padding: const EdgeInsets.all(16.0),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.blue.shade400, width: 2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                child: DropdownButton<String>(
+                  value: selectedTuning,
+                  isExpanded: true,
+                  underline: const SizedBox(),
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      updateTuning(newValue);
+                    }
+                  },
+                  items: guitarTunings.keys
+                      .map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(
+                        value,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+          // Small buttons below dropdown
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
