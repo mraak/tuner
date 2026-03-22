@@ -91,11 +91,26 @@ class _HomePageState extends State<HomePage> {
   String selectedTuning = 'Standard';
   late List<GuitarNote> guitarNotes;
   static const audioChannel = MethodChannel('com.example.tuner2/audio');
+  double detectedFrequency = 0.0;
+  double detectedAmplitude = 0.0;
+  bool isMicListening = false;
 
   @override
   void initState() {
     super.initState();
     guitarNotes = guitarTunings[selectedTuning]!.notes;
+    audioChannel.setMethodCallHandler(_handleMethodCall);
+  }
+
+  Future<dynamic> _handleMethodCall(MethodCall call) async {
+    if (call.method == 'frequencyUpdate') {
+      final double frequency = call.arguments['frequency'] as double;
+      final double amplitude = call.arguments['amplitude'] as double;
+      setState(() {
+        detectedFrequency = frequency;
+        detectedAmplitude = amplitude;
+      });
+    }
   }
 
   void updateTuning(String tuning) {
@@ -108,6 +123,18 @@ class _HomePageState extends State<HomePage> {
   void playNote(double frequency) {
     try {
       audioChannel.invokeMethod('playTone', {'frequency': frequency});
+    } on PlatformException catch (e) {
+      print('Error: ${e.message}');
+    }
+  }
+
+  void toggleMicrophone() async {
+    try {
+      final bool success =
+          await audioChannel.invokeMethod('toggleMicrophone') as bool;
+      setState(() {
+        isMicListening = success;
+      });
     } on PlatformException catch (e) {
       print('Error: ${e.message}');
     }
@@ -127,6 +154,86 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Column(
         children: [
+          // Microphone frequency display
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade900,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isMicListening ? Colors.green : Colors.grey.shade700,
+                width: 2,
+              ),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Detected Frequency',
+                          style: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          detectedFrequency > 0
+                              ? '${detectedFrequency.toStringAsFixed(2)} Hz'
+                              : '-- Hz',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Courier',
+                          ),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Amplitude',
+                          style: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          detectedAmplitude > 0
+                              ? '${detectedAmplitude.toStringAsFixed(2)}'
+                              : '--',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: toggleMicrophone,
+                  icon: Icon(isMicListening ? Icons.mic : Icons.mic_none),
+                  label: Text(isMicListening ? 'Stop Listening' : 'Start Listening'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        isMicListening ? Colors.green : Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+          ),
           // Tuning dropdown
           Padding(
             padding: const EdgeInsets.all(16.0),

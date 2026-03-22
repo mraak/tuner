@@ -4,6 +4,8 @@ import UIKit
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   var audioGenerator: AudioGenerator?
+  var audioChannel: FlutterMethodChannel?
+  var isMicListening = false
   
   override func application(
     _ application: UIApplication,
@@ -26,12 +28,20 @@ import UIKit
       return
     }
     
-    let audioChannel = FlutterMethodChannel(
+    audioChannel = FlutterMethodChannel(
       name: "com.example.tuner2/audio",
       binaryMessenger: messenger
     )
     
-    audioChannel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
+    // Set up frequency callback
+    audioGenerator?.setFrequencyCallback { [weak self] frequency, amplitude in
+      self?.audioChannel?.invokeMethod("frequencyUpdate", arguments: [
+        "frequency": frequency,
+        "amplitude": amplitude
+      ])
+    }
+    
+    audioChannel?.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
       switch call.method {
       case "playTone":
         if let args = call.arguments as? [String: Any],
@@ -40,6 +50,22 @@ import UIKit
           result(nil)
         } else {
           result(FlutterError(code: "INVALID_ARGS", message: nil, details: nil))
+        }
+      case "toggleMicrophone":
+        do {
+          if let audioGenerator = self?.audioGenerator {
+            self?.isMicListening = !(self?.isMicListening ?? false)
+            if self?.isMicListening ?? false {
+              try audioGenerator.startMicrophoneCapture()
+            } else {
+              audioGenerator.stopMicrophoneCapture()
+            }
+            result(self?.isMicListening ?? false)
+          } else {
+            result(false)
+          }
+        } catch {
+          result(FlutterError(code: "MIC_ERROR", message: error.localizedDescription, details: nil))
         }
       default:
         result(FlutterMethodNotImplemented)
