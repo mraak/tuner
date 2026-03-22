@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:web/web.dart' as web;
+import 'package:flutter/services.dart';
 
 void main() {
   runApp(const MyApp());
@@ -88,16 +88,13 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  late web.AudioContext audioContext;
-  web.OscillatorNode? currentOscillator;
   String selectedTuning = 'Standard';
-
   late List<GuitarNote> guitarNotes;
+  static const audioChannel = MethodChannel('com.example.tuner2/audio');
 
   @override
   void initState() {
     super.initState();
-    audioContext = web.AudioContext();
     guitarNotes = guitarTunings[selectedTuning]!.notes;
   }
 
@@ -109,40 +106,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   void playNote(double frequency) {
-    // Stop any currently playing note
-    currentOscillator?.stop();
-
-    final oscillator = audioContext.createOscillator();
-    final gainNode = audioContext.createGain();
-
-    oscillator.type = 'sine';
-    oscillator.frequency.value = frequency;
-
-    // Connect oscillator to gain to audio context
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    // Set gain (volume)
-    gainNode.gain.value = 0.7;
-
-    // Play the note
-    oscillator.start();
-    currentOscillator = oscillator;
-
-    // Stop after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
-      if (currentOscillator == oscillator) {
-        gainNode.gain
-            .linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
-        oscillator.stop(audioContext.currentTime + 0.5);
-        currentOscillator = null;
-      }
-    });
+    try {
+      audioChannel.invokeMethod('playTone', {'frequency': frequency});
+    } on PlatformException catch (e) {
+      print('Error: ${e.message}');
+    }
   }
 
   @override
   void dispose() {
-    currentOscillator?.stop();
     super.dispose();
   }
 
