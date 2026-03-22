@@ -38,7 +38,7 @@ class AudioGenerator {
                 
                 // Generate sine wave
                 for i in 0 ..< Int(frameCount) {
-                    let sample = Float(sin(self.phase)) * 0.3
+                    let sample = Float(sin(self.phase)) * 0.8
                     floatData[i] = sample
                     self.phase += self.phaseIncrement
                     if self.phase > 2 * .pi {

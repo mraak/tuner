@@ -20,8 +20,9 @@ class AudioGenerator {
         
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, options: [])
-            try audioSession.setActive(true)
+            try audioSession.setCategory(.playback, options: [.duckOthers, .defaultToSpeaker])
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            print("Playing tone at frequency: \(frequency) Hz")
             
             let sampleRate = 44100.0
             phaseIncrement = (frequency * 2 * .pi) / sampleRate
@@ -40,7 +41,7 @@ class AudioGenerator {
                 
                 // Generate sine wave
                 for i in 0 ..< Int(frameCount) {
-                    let sample = Float(sin(self.phase)) * 0.3
+                    let sample = Float(sin(self.phase)) * 0.8
                     floatData[i] = sample
                     self.phase += self.phaseIncrement
                     if self.phase > 2 * .pi {

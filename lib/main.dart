@@ -169,49 +169,9 @@ class _HomePageState extends State<HomePage> {
               children: guitarNotes.map((note) {
                 return SizedBox(
                   width: 70,
-                  child: GestureDetector(
-                    onTap: () => playNote(note.frequency),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.blue.shade400,
-                            Colors.blue.shade600,
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.blue.withOpacity(0.3),
-                            blurRadius: 5,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            note.name,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${note.frequency.toStringAsFixed(1)} Hz',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  child: TunerNoteButton(
+                    note: note,
+                    onPressed: () => playNote(note.frequency),
                   ),
                 );
               }).toList(),
@@ -276,6 +236,82 @@ class TunerButton extends StatelessWidget {
               '${note.frequency.toStringAsFixed(2)} Hz',
               style: const TextStyle(
                 fontSize: 16,
+                color: Colors.white70,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TunerNoteButton extends StatefulWidget {
+  final GuitarNote note;
+  final VoidCallback onPressed;
+
+  const TunerNoteButton({
+    required this.note,
+    required this.onPressed,
+    super.key,
+  });
+
+  @override
+  State<TunerNoteButton> createState() => _TunerNoteButtonState();
+}
+
+class _TunerNoteButtonState extends State<TunerNoteButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) {
+        setState(() => _isPressed = true);
+        widget.onPressed();
+      },
+      onTapUp: (_) {
+        setState(() => _isPressed = false);
+      },
+      onTapCancel: () {
+        setState(() => _isPressed = false);
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue.shade400,
+              Colors.blue.shade600,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.blue.withOpacity(0.3),
+              blurRadius: 5,
+              offset: _isPressed ? const Offset(0, 1) : const Offset(0, 2),
+            ),
+          ],
+        ),
+        transform: Matrix4.identity()..translate(0.0, _isPressed ? 2.0 : 0.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              widget.note.name,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${widget.note.frequency.toStringAsFixed(1)} Hz',
+              style: const TextStyle(
+                fontSize: 10,
                 color: Colors.white70,
               ),
             ),
