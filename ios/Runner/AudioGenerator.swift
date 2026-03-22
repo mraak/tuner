@@ -9,8 +9,6 @@ class AudioGenerator {
     private var isPlaying = false
     private var stopTimer: Timer?
     
-    // Microphone capture
-    private var inputNode: AVAudioInputNode?
     private var isListening = false
     private var frequencyCallback: ((Double, Double) -> Void)?
     
@@ -26,12 +24,10 @@ class AudioGenerator {
         guard let audioEngine = audioEngine else { throw AudioError.noAudioEngine }
         
         let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.record, options: [.duckOthers])
-        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        try audioSession.setCategory(.record, options: [])
+        try audioSession.setActive(true)
         
-        inputNode = audioEngine.inputNode
-        guard let inputNode = inputNode else { throw AudioError.noInputNode }
-        
+        let inputNode = audioEngine.inputNode
         let format = inputNode.outputFormat(forBus: 0) ?? AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
         
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
@@ -46,16 +42,10 @@ class AudioGenerator {
     }
     
     func stopMicrophoneCapture() {
-        guard let audioEngine = audioEngine, let inputNode = inputNode else { return }
+        guard let audioEngine = audioEngine else { return }
         
+        let inputNode = audioEngine.inputNode
         inputNode.removeTap(onBus: 0)
-        
-        do {
-            try audioEngine.stop()
-        } catch {
-            print("Error stopping audio engine: \(error)")
-        }
-        
         isListening = false
     }
     
@@ -72,60 +62,65 @@ class AudioGenerator {
     }
     
     private func detectFrequency(data: UnsafeMutablePointer<Float>, length: Int) -> (frequency: Double, amplitude: Double) {
-        // Perform FFT
-        let fftSize = vDSP_Length(length)
-        let halfSize = Int(fftSize) / 2
+        // Apply Hann window to reduce spectral leakage
+        var window = [Float](repeating: 0, count: length)
+        vDSP_hann_window(&window, vDSP_Length(length), Int32(vDSP_HANN_NORM))
         
-        var input = [Float](repeating: 0, count: length)
-        var output = [Float](repeating: 0, count: length)
+        var windowed = [Float](repeating: 0, count: length)
+        vDSP_vmul(data, 1, window, 1, &windowed, 1, vDSP_Length(length))
         
-        // Copy input data
-        memcpy(&input, data, length * MemoryLayout<Float>.stride)
+        // Calculate RMS to determine if there's enough signal
+        var rmsValue: Float = 0
+        vDSP_rmsqv(windowed, 1, &rmsValue, vDSP_Length(length))
         
-        // Create FFT setup
-        guard let fftSetup = vDSP_create_fftsetup(vDSP_Length(log2(Float(fftSize))), Int32(kFFTRadix2)) else {
-            return (frequency: 0, amplitude: 0)
+        // If signal is too quiet, return 0
+        if rmsValue < 0.001 {
+            return (0, 0)
         }
-        defer { vDSP_destroy_fftsetup(fftSetup) }
         
-        // Convert to complex format
-        var complexBuffer = [DSPComplex](repeating: DSPComplex(real: 0, imag: 0), count: halfSize)
-        input.withUnsafeBytes { inputBytes in
-            var splitComplex = DSPSplitComplex(
-                realp: UnsafeMutablePointer<Float>(mutating: [Float](repeating: 0, count: halfSize)),
-                imagp: UnsafeMutablePointer<Float>(mutating: [Float](repeating: 0, count: halfSize))
-            )
-            
-            for i in 0..<halfSize {
-                if i < length {
-                    complexBuffer[i].real = input[i]
+        // Use autocorrelation for more robust pitch detection
+        let maxLag = length / 2
+        var autocorr = [Float](repeating: 0, count: maxLag)
+        
+        // Calculate autocorrelation
+        for lag in 0..<maxLag {
+            var sum: Float = 0
+            for i in 0..<(length - lag) {
+                sum += windowed[i] * windowed[i + lag]
+            }
+            autocorr[lag] = sum
+        }
+        
+        // Find the first peak after the initial zero lag (which is the strongest)
+        let minPeriod = Int(44100 / 400) // Minimum frequency ~400Hz
+        let maxPeriod = Int(44100 / 50)  // Maximum frequency ~50Hz
+        
+        var maxValue: Float = 0
+        var peakLag = minPeriod
+        
+        for lag in minPeriod..<min(maxPeriod, maxLag) {
+            // Look for peaks in autocorrelation
+            if lag > minPeriod && lag < maxLag - 1 {
+                if autocorr[lag] > autocorr[lag - 1] && 
+                   autocorr[lag] > autocorr[lag + 1] &&
+                   autocorr[lag] > maxValue {
+                    maxValue = autocorr[lag]
+                    peakLag = lag
                 }
             }
         }
         
-        // Simple peak detection in magnitude spectrum
-        var magnitudes = [Float](repeating: 0, count: halfSize)
-        for i in 0..<halfSize {
-            let real = complexBuffer[i].real
-            let imag = complexBuffer[i].imag
-            magnitudes[i] = sqrt(real * real + imag * imag)
+        // Convert lag to frequency
+        let frequency = 44100.0 / Double(peakLag)
+        let amplitude = Double(maxValue) / Double(length)
+        
+        // Only return if confidence is reasonably high
+        let confidence = maxValue / autocorr[0]
+        if confidence > 0.1 {
+            return (frequency, amplitude)
+        } else {
+            return (0, 0)
         }
-        
-        // Find peak
-        var maxMagnitude: Float = 0
-        var peakBin = 0
-        for i in 20..<halfSize { // Skip very low frequencies (below ~44Hz at 44.1kHz)
-            if magnitudes[i] > maxMagnitude {
-                maxMagnitude = magnitudes[i]
-                peakBin = i
-            }
-        }
-        
-        // Convert bin to frequency (44.1kHz sample rate)
-        let frequency = Double(peakBin) * 44100.0 / Double(length)
-        let amplitude = Double(maxMagnitude)
-        
-        return (frequency: frequency, amplitude: amplitude)
     }
     
     func playTone(frequency: Double, duration: Double) {
@@ -137,7 +132,7 @@ class AudioGenerator {
         do {
             let audioSession = AVAudioSession.sharedInstance()
             try audioSession.setCategory(.playback, options: [.duckOthers, .defaultToSpeaker])
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            try audioSession.setActive(true)
             print("Playing tone at frequency: \(frequency) Hz")
             
             let sampleRate = 44100.0
