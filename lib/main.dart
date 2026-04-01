@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'microphone_native.dart' if (dart.library.js_interop) 'microphone_web.dart';
 
 void main() {
   runApp(const MyApp());
@@ -129,6 +131,28 @@ class _HomePageState extends State<HomePage> {
   }
 
   void toggleMicrophone() async {
+    if (kIsWeb) {
+      if (isMicListening) {
+        stopWebMicrophone();
+        setState(() {
+          isMicListening = false;
+          detectedFrequency = 0.0;
+          detectedAmplitude = 0.0;
+        });
+      } else {
+        setState(() { isMicListening = true; });
+        startWebMicrophone((freq, amp) {
+          if (mounted) {
+            setState(() {
+              detectedFrequency = freq;
+              detectedAmplitude = amp;
+            });
+          }
+        });
+      }
+      return;
+    }
+
     try {
       final bool success =
           await audioChannel.invokeMethod('toggleMicrophone') as bool;
